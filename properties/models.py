@@ -94,3 +94,56 @@ class PropertyAmenity(models.Model):
     
     def __str__(self):
         return f"{self.property.title} - {self.amenity_name}"
+    
+
+class SavedProperty(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey('accounts.User', on_delete=models.CASCADE, related_name='saved_properties')
+    property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='saved_by')
+    notes = models.TextField(blank=True, help_text="Personal notes about this property")
+    saved_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-saved_at']
+        unique_together = ['user', 'property']  # Prevent duplicate saves
+        verbose_name_plural = 'Saved Properties'
+    
+    def __str__(self):
+        return f"{self.user.full_name} saved {self.property.title}"
+
+class PropertyView(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='views')
+    user = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='property_views')
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    viewed_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-viewed_at']
+    
+    def __str__(self):
+        viewer = self.user.full_name if self.user else f"Anonymous ({self.ip_address})"
+        return f"{viewer} viewed {self.property.title}"
+
+
+class PropertyDocument(models.Model):
+    DOCUMENT_TYPE_CHOICES = [
+        ('TITLE_DEED', 'Title Deed'),
+        ('RENTAL_AGREEMENT', 'Rental Agreement'),
+        ('INSPECTION_REPORT', 'Inspection Report'),
+        ('OTHER', 'Other'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='documents')
+    document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPE_CHOICES)
+    document_url = models.FileField(upload_to='property_documents/')
+    document_name = models.CharField(max_length=255)
+    is_required_for_verification = models.BooleanField(default=False)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-uploaded_at']
+    
+    def __str__(self):
+        return f"{self.property.title} - {self.document_type}"
