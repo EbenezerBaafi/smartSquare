@@ -30,8 +30,8 @@ class PropertyApplication(models.Model):
         return f"{self.tenant.full_name} -> {self.property.title} ({self.status})"
     
     def save(self, *args, **kwargs):
-        # Auto-update responded_at when status changes from PENDING
-        if self.pk:
+    # Auto-update responded_at when status changes from PENDING
+        if self.pk and PropertyApplication.objects.filter(pk=self.pk).exists():
             old_instance = PropertyApplication.objects.get(pk=self.pk)
             if old_instance.status == 'PENDING' and self.status != 'PENDING':
                 from django.utils import timezone
