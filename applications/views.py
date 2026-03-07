@@ -9,6 +9,7 @@ from .serializers import (
     ApplicationDetailSerializer
 )
 from properties.models import Property
+from notifications.models import Notification
 
 class IsOwnerOrReadOnly(permissions.BasePermission):
     """
@@ -88,6 +89,7 @@ class ApplicationDetailView(generics.RetrieveAPIView):
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
     queryset = PropertyApplication.objects.all()
 
+
 class RespondToApplicationView(generics.UpdateAPIView):
     """
     PUT /api/applications/<id>/respond/
@@ -111,7 +113,25 @@ class RespondToApplicationView(generics.UpdateAPIView):
                 'error': 'This application has already been processed'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        return super().update(request, *args, **kwargs)
+        # Update the application
+        response = super().update(request, *args, **kwargs)
+        
+        # Refresh instance to get updated status
+        instance.refresh_from_db()
+        
+        # Create notification for tenant
+        Notification.objects.create(
+            user=instance.tenant,
+            notification_type='APPLICATION_ACCEPTED' if instance.status == 'ACCEPTED' else 'APPLICATION_REJECTED',
+            title=f'Application {instance.status.title()}',
+            message=f'Your application for "{instance.property.title}" has been {instance.status.lower()} by the landlord.',
+            metadata={
+                'application_id': str(instance.id),
+                'property_id': str(instance.property.id)
+            }
+        )
+        
+        return response
 
 class WithdrawApplicationView(APIView):
     """
@@ -151,3 +171,4 @@ class ReceivedApplicationsView(generics.ListAPIView):
         return PropertyApplication.objects.filter(
             property__owner=self.request.user
         ).select_related('tenant', 'property').order_by('-applied_at')
+    
